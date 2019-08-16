@@ -37,6 +37,8 @@ from decimal import Decimal
 from hashlib import sha256
 from functools import partial
 
+from pyblake2 import blake2s
+
 import electrumx.lib.util as util
 from electrumx.lib.hash import Base58, hash160, double_sha256, hash_to_hex_str
 from electrumx.lib.hash import HASHX_LEN, hex_str_to_hash
@@ -302,6 +304,25 @@ class EquihashMixin(object):
         deserializer = cls.DESERIALIZER(block)
         return deserializer.read_header(cls.BASIC_HEADER_SIZE)
 
+class ResistanceMixin(object):
+    STATIC_BLOCK_HEADERS = False
+    BASIC_HEADER_SIZE = 140  # Excluding Equihash solution
+    DESERIALIZER = lib_tx.DeserializerResistance
+   # DESERIALIZER = lib_tx.DeserializerZcash
+    HEADER_VALUES = ('version', 'prev_block_hash', 'merkle_root', 'reserved',
+                     'timestamp', 'bits', 'nonce')
+    HEADER_UNPACK = struct.Struct('< 4s 32s 32s 32s 4s 4s 32s').unpack_from
+
+    @classmethod
+    def block_header(cls, block, height):
+        '''Return the block header bytes'''
+        deserializer = cls.DESERIALIZER(block)
+        return deserializer.read_header(cls.BASIC_HEADER_SIZE)
+
+    @classmethod
+    def header_hash(cls, header):
+        '''Given a header return the hash.'''
+        return double_sha256(header)
 
 class ScryptMixin(object):
 
@@ -1231,6 +1252,20 @@ class FairCoin(Coin):
         else:
             return Block(raw_block, cls.block_header(raw_block, height), [])
 
+class Resistance(ResistanceMixin, Coin):
+    NAME = "Resistance"
+    SHORTNAME = "RES"
+    NET = "mainnet"
+    P2PKH_VERBYTE = bytes.fromhex("1B97")
+    P2SH_VERBYTES = [bytes.fromhex("1B9C")]
+    WIF_BYTE = bytes.fromhex("80")
+    GENESIS_HASH = ('328ab5de52cf3b7c1a5dbd02909b7e23'
+                    'a25d1715143c8b41aba903cf2b48754f')
+    TX_COUNT = 63945
+    TX_COUNT_HEIGHT = 26270
+    TX_PER_BLOCK = 2
+    RPC_PORT = 8132
+    REORG_LIMIT = 800
 
 class Zcash(EquihashMixin, Coin):
     NAME = "Zcash"

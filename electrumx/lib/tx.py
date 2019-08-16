@@ -303,6 +303,7 @@ class DeserializerAuxPowSegWit(DeserializerSegWit, DeserializerAuxPow):
     pass
 
 
+
 class DeserializerEquihash(Deserializer):
     def read_header(self, static_header_size):
         '''Return the block header bytes'''
@@ -370,6 +371,55 @@ class DeserializerZcash(DeserializerEquihash):
 
         return base_tx
 
+
+class DeserializerResistance(Deserializer):
+    def read_header(self, block_header_size):
+        return self._read_nbytes(block_header_size)
+    
+    def read_tx(self):
+        header = self._read_le_uint32()
+        overwintered = ((header >> 31) == 1)
+        if overwintered:
+            version = header & 0x7fffffff
+            self.cursor += 4  # versionGroupId
+        else:
+            version = header
+
+        is_overwinter_v3 = version == 3
+        is_sapling_v4 = version == 4
+
+        base_tx = TxJoinSplit(
+            version,
+            self._read_inputs(),    # inputs
+            self._read_outputs(),   # outputs
+            self._read_le_uint32()  # locktime
+        )
+
+        if is_overwinter_v3 or is_sapling_v4:
+            self.cursor += 4  # expiryHeight
+
+        has_shielded = False
+        if is_sapling_v4:
+            self.cursor += 8  # valueBalance
+            shielded_spend_size = self._read_varint()
+            self.cursor += shielded_spend_size * 384  # vShieldedSpend
+            shielded_output_size = self._read_varint()
+            self.cursor += shielded_output_size * 948  # vShieldedOutput
+            has_shielded = shielded_spend_size > 0 or shielded_output_size > 0
+
+        if base_tx.version >= 2:
+            joinsplit_size = self._read_varint()
+            if joinsplit_size > 0:
+                joinsplit_desc_len = 1506 + (192 if is_sapling_v4 else 296)
+                # JSDescription
+                self.cursor += joinsplit_size * joinsplit_desc_len
+                self.cursor += 32  # joinSplitPubKey
+                self.cursor += 64  # joinSplitSig
+
+        if is_sapling_v4 and has_shielded:
+            self.cursor += 64  # bindingSig
+
+        return base_tx
 
 class TxTime(namedtuple("Tx", "version time inputs outputs locktime")):
     '''Class representing transaction that has a time field.'''

@@ -13,6 +13,7 @@ setuptools.setup(
         'uvloop': ['uvloop>=0.12.2'],   # Bump when the uvloop connection_lost bug is fixed
         # For various coins
         'blake256': ['blake256>=0.1.1'],
+        'pyblake2': ['pyblake2>=1.1.2'],
         'crypto': ['pycryptodomex>=3.8.1'],
         'groestl': ['groestlcoin-hash>=1.0.1'],
         'tribus-hash': ['tribus-hash>=1.0.2'],
